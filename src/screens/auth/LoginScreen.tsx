@@ -30,7 +30,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const onSubmit = async (data: LoginCredentials) => {
     setIsLoading(true);
     try {
-      await authService.login(data);
+      await authService.signIn(data);
     } catch (error: any) {
       console.error('Login error:', error.message);
       Alert.alert('Login Failed', error.message);

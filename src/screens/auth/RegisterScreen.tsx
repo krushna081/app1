@@ -36,7 +36,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
-      const result = await authService.register(data);
+      const result = await authService.signUp(data);
       if (result?.user?.identities?.length === 0) {
         Alert.alert(
           'Account Exists',
@@ -45,9 +45,8 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         );
       } else {
         Alert.alert(
-          'Account Created',
-          'Your account has been created successfully! Please sign in to continue.',
-          [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+          'Verify Your Email',
+          'We sent you a confirmation link. Click it to log in automatically — no extra sign-in needed!',
         );
       }
     } catch (error: any) {

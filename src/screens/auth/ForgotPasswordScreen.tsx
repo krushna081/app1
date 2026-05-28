@@ -14,7 +14,7 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSendOtp = async () => {
+  const handleReset = async () => {
     if (!email.trim()) {
       Alert.alert('Error', 'Please enter your email address');
       return;
@@ -22,23 +22,10 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
 
     setIsLoading(true);
     try {
-      await authService.sendOtp(email);
-      Alert.alert(
-        'Verification Code Sent',
-        'Please check your email for the 6-digit verification code.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('VerifyOtp', { email: email.trim(), mode: 'password_reset' }),
-          },
-        ]
-      );
+      await authService.resetPassword(email);
+      Alert.alert('Check Your Email', 'We sent you a password reset link.');
     } catch (error: any) {
-      console.error('Send OTP error:', error);
-      Alert.alert(
-        'Failed to Send Code',
-        'Could not send verification code. Please make sure:\n\n1. "Enable email confirmations" is ON in Supabase Auth settings\n2. A custom SMTP provider is configured in your Supabase dashboard\n3. The email address is correct'
-      );
+      Alert.alert('Failed', error.message || 'Could not send reset email.');
     } finally {
       setIsLoading(false);
     }
@@ -63,8 +50,8 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
       />
 
       <AppButton
-        title="Send Verification Code"
-        onPress={handleSendOtp}
+        title="Send Reset Link"
+        onPress={handleReset}
         loading={isLoading}
         style={styles.button}
       />

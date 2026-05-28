@@ -37,7 +37,7 @@ export const CreateAccountScreen: React.FC<Props> = ({ route, navigation }) => {
   const onSubmit = async (data: CreateAccountFormData) => {
     setIsLoading(true);
     try {
-      await authService.adminCreateUser(data);
+      await authService.signUp(data);
       Alert.alert(
         'Account Created',
         `A new ${data.role} account has been created successfully. The user can now sign in.`,
