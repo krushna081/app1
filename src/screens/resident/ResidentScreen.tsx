@@ -1,36 +1,45 @@
 import React, { useEffect } from 'react';
-import { FlatList, StyleSheet, Alert, RefreshControl } from 'react-native';
+import { Alert, FlatList, RefreshControl, StyleSheet, Text } from 'react-native';
+import { EmptyState } from '../../components/common/EmptyState';
+import { LoadingOverlay } from '../../components/common/LoadingOverlay';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { VisitorCard } from '../../components/visitor/VisitorCard';
-import { EmptyState } from '../../components/common/EmptyState';
 import { useAuth } from '../../hooks/useAuth';
 import { useVisitors } from '../../hooks/useVisitors';
 import { realtimeService } from '../../services/realtimeService';
+import { colors, spacing, typography } from '../../theme';
 import { VisitorStatus } from '../../types/visitor';
-import { colors } from '../../theme';
 
 export const ResidentScreen: React.FC = () => {
   const { user } = useAuth();
-  const { visitors, isLoading, refetch, updateStatus, isUpdating } = useVisitors(user?.flatId || '');
+  const { visitors, isLoading, isRefreshing, error, refetch, updateStatus, isUpdating } =
+    useVisitors();
 
   useEffect(() => {
-    if (user?.flatId) {
-      const channel = realtimeService.subscribeToFlatVisitors(user.flatId, () => {
-        refetch();
-      });
-      return () => {
-        realtimeService.unsubscribe(channel);
-      };
-    }
+    if (!user?.flatId) return;
+
+    const channel = realtimeService.subscribeToFlatVisitors(user.flatId, () => {
+      void refetch();
+    });
+
+    return () => realtimeService.unsubscribe(channel);
   }, [user?.flatId, refetch]);
 
   const handleDecision = async (visitorId: string, status: VisitorStatus) => {
     try {
-      await updateStatus({ visitorId, status, userId: user!.id });
+      await updateStatus({ visitorId, status });
     } catch (error) {
-      Alert.alert('Error', 'Could not save decision. Please try again.');
+      console.error('Could not update visitor decision', error);
+      Alert.alert(
+        'Could Not Save Decision',
+        'The decision was not saved. Check your connection and try again.',
+      );
     }
   };
+
+  if (isLoading && visitors.length === 0) {
+    return <LoadingOverlay visible />;
+  }
 
   return (
     <ScreenContainer withPadding={false}>
@@ -40,24 +49,46 @@ export const ResidentScreen: React.FC = () => {
         renderItem={({ item }) => (
           <VisitorCard
             visitor={item}
-            onApprove={() => handleDecision(item.id, 'approved')}
-            onReject={() => handleDecision(item.id, 'rejected')}
+            onApprove={() => {
+              void handleDecision(item.id, 'approved');
+            }}
+            onReject={() => {
+              void handleDecision(item.id, 'rejected');
+            }}
             isLoadingDecision={isUpdating}
           />
         )}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          error && visitors.length > 0 ? (
+            <Text style={styles.errorText}>Could not refresh visitors. Pull down to retry.</Text>
+          ) : undefined
+        }
         ListEmptyComponent={
           !isLoading ? (
-            <EmptyState
-              title="No Visitors"
-              message="Your visitor history will appear here."
-            />
-          ) : null
+            error ? (
+              <EmptyState
+                title="Could Not Load Visitors"
+                message="Check your connection and pull down to retry."
+              />
+            ) : (
+              <EmptyState
+                title={user?.flatId ? 'No Visitors' : 'No Flat Assigned'}
+                message={
+                  user?.flatId
+                    ? 'Your visitor history will appear here.'
+                    : 'Ask your society administrator to assign you to a flat.'
+                }
+              />
+            )
+          ) : undefined
         }
         refreshControl={
           <RefreshControl
-            refreshing={isLoading}
-            onRefresh={refetch}
+            refreshing={isRefreshing}
+            onRefresh={() => {
+              void refetch();
+            }}
             colors={[colors.primary]}
           />
         }
@@ -70,5 +101,10 @@ const styles = StyleSheet.create({
   list: {
     padding: 16,
     flexGrow: 1,
+  },
+  errorText: {
+    ...typography.bodySmall,
+    color: colors.danger,
+    marginBottom: spacing.md,
   },
 });

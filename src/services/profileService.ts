@@ -5,15 +5,11 @@ export const profileService = {
   async getProfile(userId: string): Promise<UserProfile> {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, full_name, role, society_id, flat_id')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-      throw error;
-    }
-
+    if (error) throw error;
     if (!data) throw new Error('Profile not found');
 
     return {

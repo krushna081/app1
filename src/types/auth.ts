@@ -1,3 +1,4 @@
+import { Session } from '@supabase/supabase-js';
 import { Database } from './database';
 
 export type UserRole = Database['public']['Tables']['profiles']['Row']['role'];
@@ -14,5 +15,7 @@ export interface UserProfile {
 export interface AuthState {
   user: UserProfile | null;
   isLoading: boolean;
-  session: any | null;
+  session: Session | null;
+  error: string | null;
+  isPasswordRecovery: boolean;
 }

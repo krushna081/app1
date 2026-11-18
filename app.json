@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "SecureGate",
+    "slug": "securegate",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "securegate",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "SecureGate needs camera access to photograph visitors at the gate.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "SecureGate uses Face ID to protect your stored session."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.securegate.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.securegate.app",
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
+  }
+}

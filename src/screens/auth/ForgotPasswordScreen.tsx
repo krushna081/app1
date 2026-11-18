@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { AuthStackParamList } from '../../navigation/types';
 import { AppInput } from '../../components/common/AppInput';
@@ -10,67 +10,87 @@ import { authService } from '../../services/authService';
 
 type Props = StackScreenProps<AuthStackParamList, 'ForgotPassword'>;
 
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | undefined>();
 
-  const handleReset = async () => {
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
+  const handleSendCode = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!emailPattern.test(normalizedEmail)) {
+      setError('Enter a valid email address');
       return;
     }
 
+    setError(undefined);
     setIsLoading(true);
     try {
-      await authService.resetPassword(email);
-      Alert.alert('Check Your Email', 'We sent you a password reset link.');
-    } catch (error: any) {
-      Alert.alert('Failed', error.message || 'Could not send reset email.');
+      await authService.requestPasswordResetOtp(normalizedEmail);
+      navigation.navigate('VerifyOtp', { email: normalizedEmail });
+    } catch (requestError) {
+      Alert.alert(
+        'Could Not Send Code',
+        requestError instanceof Error ? requestError.message : 'Please try again.',
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <ScreenContainer withKeyboard withPadding={false} style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Forgot Password</Text>
-        <Text style={styles.subtitle}>
-          Enter your registered email address and we'll send you a verification code to reset your password.
-        </Text>
-      </View>
+    <ScreenContainer withKeyboard withPadding={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Forgot Password</Text>
+          <Text style={styles.subtitle}>
+            Enter your registered email address. If the address is registered, we will send a
+            6-digit verification code.
+          </Text>
+        </View>
 
-      <AppInput
-        label="Email Address"
-        placeholder="example@society.com"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
+        <AppInput
+          label="Email Address"
+          placeholder="you@society.com"
+          value={email}
+          onChangeText={(value) => {
+            setEmail(value);
+            if (error) setError(undefined);
+          }}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          textContentType="emailAddress"
+          error={error}
+        />
 
-      <AppButton
-        title="Send Reset Link"
-        onPress={handleReset}
-        loading={isLoading}
-        style={styles.button}
-      />
+        <AppButton
+          title="Send Verification Code"
+          onPress={handleSendCode}
+          loading={isLoading}
+          style={styles.button}
+        />
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Remember your password? </Text>
-        <Text
-          style={styles.link}
-          onPress={() => navigation.navigate('Login')}
-        >
-          Sign In
-        </Text>
-      </View>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Remember your password? </Text>
+          <Text style={styles.link} onPress={() => navigation.navigate('Login')}>
+            Sign In
+          </Text>
+        </View>
+      </ScrollView>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,

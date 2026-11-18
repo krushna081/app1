@@ -1,11 +1,11 @@
 import React from 'react';
 import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
   ActivityIndicator,
+  StyleSheet,
+  Text,
+  TextStyle,
+  TouchableOpacity,
   ViewStyle,
-  TextStyle
 } from 'react-native';
 import { colors, spacing, typography, shadows } from '../../theme';
 
@@ -18,39 +18,47 @@ interface Props {
   style?: ViewStyle;
 }
 
-export const AppButton: React.FC<Props> = React.memo(({
-  title,
-  onPress,
-  variant = 'primary',
-  loading,
-  disabled,
-  style
-}) => {
-  const getBackgroundColor = () => {
-    if (disabled) return colors.border;
-    switch (variant) {
-      case 'secondary': return colors.secondary;
-      case 'danger': return colors.danger;
-      case 'success': return colors.success;
-      default: return colors.primary;
-    }
-  };
+export const AppButton: React.FC<Props> = React.memo(
+  ({ title, onPress, variant = 'primary', loading, disabled, style }) => {
+    const isDisabled = disabled || loading;
 
-  return (
-    <TouchableOpacity
-      style={[styles.button, { backgroundColor: getBackgroundColor() }, style]}
-      onPress={onPress}
-      disabled={disabled || loading}
-      activeOpacity={0.8}
-    >
-      {loading ? (
-        <ActivityIndicator color={colors.white} />
-      ) : (
-        <Text style={styles.text}>{title}</Text>
-      )}
-    </TouchableOpacity>
-  );
-});
+    const getBackgroundColor = () => {
+      if (isDisabled) return colors.border;
+      switch (variant) {
+        case 'secondary':
+          return colors.secondary;
+        case 'danger':
+          return colors.danger;
+        case 'success':
+          return colors.success;
+        default:
+          return colors.primary;
+      }
+    };
+
+    const textStyle: TextStyle = isDisabled ? styles.disabledText : styles.text;
+
+    return (
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: getBackgroundColor() }, style]}
+        onPress={onPress}
+        disabled={isDisabled}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: isDisabled, busy: !!loading }}
+      >
+        {loading ? (
+          <ActivityIndicator color={colors.white} />
+        ) : (
+          <Text style={textStyle}>{title}</Text>
+        )}
+      </TouchableOpacity>
+    );
+  },
+);
+
+AppButton.displayName = 'AppButton';
 
 const styles = StyleSheet.create({
   button: {
@@ -64,6 +72,11 @@ const styles = StyleSheet.create({
   text: {
     ...typography.bodyMedium,
     color: colors.white,
+    fontWeight: '600',
+  },
+  disabledText: {
+    ...typography.bodyMedium,
+    color: colors.textSecondary,
     fontWeight: '600',
   },
 });

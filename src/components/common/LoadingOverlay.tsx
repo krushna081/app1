@@ -8,7 +8,7 @@ interface Props {
 
 export const LoadingOverlay: React.FC<Props> = ({ visible }) => {
   return (
-    <Modal transparent visible={visible} animationType="fade">
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={() => undefined}>
       <View style={styles.container}>
         <View style={styles.card}>
           <ActivityIndicator size="large" color={colors.primary} />

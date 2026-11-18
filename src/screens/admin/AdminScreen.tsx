@@ -1,53 +1,111 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { ScreenContainer } from '../../components/common/ScreenContainer';
-import { AppButton } from '../../components/common/AppButton';
-import { useAuth } from '../../hooks/useAuth';
-import { typography, spacing, colors } from '../../theme';
+import {
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { StackScreenProps } from '@react-navigation/stack';
+import { AppButton } from '../../components/common/AppButton';
+import { ScreenContainer } from '../../components/common/ScreenContainer';
+import { useAuth } from '../../hooks/useAuth';
+import { adminService } from '../../services/adminService';
 import { AdminStackParamList } from '../../navigation/types';
+import { colors, spacing, typography } from '../../theme';
 
 type Props = StackScreenProps<AdminStackParamList, 'AdminHome'>;
 
 export const AdminScreen: React.FC<Props> = ({ navigation }) => {
   const { user, signOut } = useAuth();
+  const statsQuery = useQuery({
+    queryKey: ['admin-stats'],
+    queryFn: adminService.getStats,
+  });
+
+  const confirmSignOut = () => {
+    Alert.alert('Sign Out?', 'You will need to sign in again to manage accounts.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: () => {
+          void signOut();
+        },
+      },
+    ]);
+  };
+
+  const visitorsToday = statsQuery.isLoading
+    ? '—'
+    : statsQuery.isError
+      ? 'Unavailable'
+      : String(statsQuery.data?.visitorsToday ?? 0);
+  const guards = statsQuery.isLoading
+    ? '—'
+    : statsQuery.isError
+      ? 'Unavailable'
+      : String(statsQuery.data?.guards ?? 0);
 
   return (
     <ScreenContainer>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={statsQuery.isFetching}
+            onRefresh={() => {
+              void statsQuery.refetch();
+            }}
+            colors={[colors.primary]}
+          />
+        }
+      >
         <View style={styles.userInfoBar}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>
-              {user?.fullName?.charAt(0)?.toUpperCase() || 'A'}
-            </Text>
+            <Text style={styles.avatarText}>{user?.fullName?.charAt(0)?.toUpperCase() || 'A'}</Text>
           </View>
           <View style={styles.userInfoText}>
-            <Text style={styles.userName}>{user?.fullName || 'Admin'}</Text>
-            <Text style={styles.userRole}>Administrator</Text>
+            <Text style={styles.userName}>{user?.fullName || 'Administrator'}</Text>
+            <Text style={styles.userRole}>Society Administrator</Text>
           </View>
-          <TouchableOpacity onPress={signOut} style={styles.logoutSmall} activeOpacity={0.6}>
-            <Text style={styles.logoutSmallText}>Logout</Text>
+          <TouchableOpacity
+            onPress={confirmSignOut}
+            style={styles.logoutSmall}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+          >
+            <Text style={styles.logoutSmallText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.header}>
-          <Text style={styles.title}>Admin Panel</Text>
-          <Text style={styles.subtitle}>Society Management Dashboard</Text>
+          <Text style={styles.title}>Society Dashboard</Text>
+          <Text style={styles.subtitle}>{"Accounts and today's activity"}</Text>
         </View>
 
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>124</Text>
-            <Text style={styles.statLabel}>Total Visitors</Text>
+            <Text style={styles.statValue}>{visitorsToday}</Text>
+            <Text style={styles.statLabel}>Visitors Today</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>12</Text>
-            <Text style={styles.statLabel}>Active Guards</Text>
+            <Text style={styles.statValue}>{guards}</Text>
+            <Text style={styles.statLabel}>Guard Accounts</Text>
           </View>
         </View>
 
+        {statsQuery.isError ? (
+          <Text style={styles.errorText}>
+            Live statistics could not be loaded. Pull down to retry.
+          </Text>
+        ) : null}
+
         <View style={styles.menu}>
-          <Text style={styles.menuSectionTitle}>User Management</Text>
+          <Text style={styles.menuSectionTitle}>Account Management</Text>
 
           <AppButton
             title="Create Guard Account"
@@ -62,14 +120,13 @@ export const AdminScreen: React.FC<Props> = ({ navigation }) => {
             style={styles.menuItem}
           />
 
-          <Text style={[styles.menuSectionTitle, { marginTop: spacing.lg }]}>Overview</Text>
-
-          <AppButton
-            title="Society Reports"
-            variant="secondary"
-            onPress={() => {}}
-            style={styles.menuItem}
-          />
+          <Text style={[styles.menuSectionTitle, styles.menuSectionSpacing]}>
+            How Accounts Work
+          </Text>
+          <Text style={styles.helperText}>
+            Only administrators can create accounts. Each guard and resident is assigned to this
+            society. Residents are also assigned to one flat.
+          </Text>
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -162,6 +219,12 @@ const styles = StyleSheet.create({
   statLabel: {
     ...typography.label,
     color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  errorText: {
+    ...typography.bodySmall,
+    color: colors.danger,
+    marginBottom: spacing.md,
   },
   menu: {
     gap: spacing.sm,
@@ -174,7 +237,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: spacing.xs,
   },
+  menuSectionSpacing: {
+    marginTop: spacing.lg,
+  },
   menuItem: {
     height: 56,
+  },
+  helperText: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
 });

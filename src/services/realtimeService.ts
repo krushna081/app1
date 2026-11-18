@@ -1,8 +1,12 @@
+import { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { VisitorStatus } from '../types/visitor';
 
 export const realtimeService = {
-  subscribeToVisitorUpdates(visitorId: string, onUpdate: (status: VisitorStatus) => void) {
+  subscribeToVisitorUpdates(
+    visitorId: string,
+    onUpdate: (status: VisitorStatus) => void,
+  ): RealtimeChannel {
     return supabase
       .channel(`visitor-${visitorId}`)
       .on(
@@ -14,31 +18,46 @@ export const realtimeService = {
           filter: `id=eq.${visitorId}`,
         },
         (payload) => {
-          onUpdate(payload.new.status);
-        }
+          const next = payload.new as { status?: VisitorStatus };
+          if (next.status) onUpdate(next.status);
+        },
       )
       .subscribe();
   },
 
-  subscribeToFlatVisitors(flatId: string, onNewVisitor: () => void) {
+  subscribeToFlatVisitors(flatId: string, onVisitorChange: () => void): RealtimeChannel {
     return supabase
       .channel(`flat-${flatId}`)
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'visitors',
           filter: `flat_id=eq.${flatId}`,
         },
-        () => {
-          onNewVisitor();
-        }
+        () => onVisitorChange(),
       )
       .subscribe();
   },
 
-  unsubscribe(channel: any) {
-    supabase.removeChannel(channel);
+  subscribeToSocietyVisitors(societyId: string, onVisitorChange: () => void): RealtimeChannel {
+    return supabase
+      .channel(`society-${societyId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'visitors',
+          filter: `society_id=eq.${societyId}`,
+        },
+        () => onVisitorChange(),
+      )
+      .subscribe();
+  },
+
+  unsubscribe(channel: RealtimeChannel | null | undefined): void {
+    if (channel) void supabase.removeChannel(channel);
   },
 };

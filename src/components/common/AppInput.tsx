@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  TextInput,
-  Text,
-  StyleSheet,
-  TextInputProps,
-  TouchableOpacity,
-} from 'react-native';
+import { View, TextInput, Text, StyleSheet, TextInputProps, TouchableOpacity } from 'react-native';
 import { colors, spacing, typography } from '../../theme';
 
 interface Props extends TextInputProps {
@@ -26,6 +19,7 @@ export const AppInput: React.FC<Props> = ({ label, error, style, isPassword, ...
           style={[styles.input, style]}
           placeholderTextColor={colors.textMuted}
           secureTextEntry={isPassword && !showPassword}
+          accessibilityLabel={label}
           {...props}
         />
         {isPassword && (
@@ -33,10 +27,10 @@ export const AppInput: React.FC<Props> = ({ label, error, style, isPassword, ...
             style={styles.eyeButton}
             onPress={() => setShowPassword(!showPassword)}
             activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
           >
-            <Text style={styles.eyeIcon}>
-              {showPassword ? 'Hide' : 'Show'}
-            </Text>
+            <Text style={styles.eyeIcon}>{showPassword ? 'Hide' : 'Show'}</Text>
           </TouchableOpacity>
         )}
       </View>

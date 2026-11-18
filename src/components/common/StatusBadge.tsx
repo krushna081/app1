@@ -8,25 +8,35 @@ interface Props {
 }
 
 export const StatusBadge: React.FC<Props> = ({ status }) => {
-  const getStatusStyles = () => {
-    switch (status) {
-      case 'approved': return { bg: '#DCFCE7', text: colors.success };
-      case 'rejected': return { bg: '#FEE2E2', text: colors.danger };
-      case 'pending': return { bg: '#FEF3C7', text: colors.warning };
-      case 'entered': return { bg: '#DBEAFE', text: colors.primary };
-      case 'exited': return { bg: '#F1F5F9', text: colors.secondary };
-      default: return { bg: colors.border, text: colors.textSecondary };
-    }
-  };
-
-  const { bg, text } = getStatusStyles();
+  const { bg, text } = getStatusStyles(status);
 
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Text style={[styles.text, { color: text }]}>{status}</Text>
+      <Text style={[styles.text, { color: text }]}>{capitalize(status)}</Text>
     </View>
   );
 };
+
+function getStatusStyles(status: VisitorStatus) {
+  switch (status) {
+    case 'approved':
+      return { bg: '#DCFCE7', text: colors.success };
+    case 'rejected':
+      return { bg: '#FEE2E2', text: colors.danger };
+    case 'pending':
+      return { bg: '#FEF3C7', text: colors.warning };
+    case 'entered':
+      return { bg: '#DBEAFE', text: colors.primary };
+    case 'exited':
+      return { bg: '#F1F5F9', text: colors.secondary };
+    default:
+      return { bg: colors.border, text: colors.textSecondary };
+  }
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
 
 const styles = StyleSheet.create({
   badge: {

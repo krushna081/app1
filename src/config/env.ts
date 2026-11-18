@@ -1,11 +1,13 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY, RESEND_API_KEY } from '@env';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error('Missing Supabase environment variables. Check your .env file.');
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing Supabase configuration. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in .env.',
+  );
 }
 
 export const ENV = {
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY,
-  RESEND_API_KEY: RESEND_API_KEY || '',
+  SUPABASE_URL: supabaseUrl,
+  SUPABASE_ANON_KEY: supabaseAnonKey,
 } as const;

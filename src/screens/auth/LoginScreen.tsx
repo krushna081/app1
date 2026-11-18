@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Alert, TouchableOpacity, ScrollView } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -13,7 +13,7 @@ import { AuthStackParamList } from '../../navigation/types';
 
 const loginSchema = z.object({
   email: z.string().trim().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 type LoginCredentials = z.infer<typeof loginSchema>;
@@ -22,7 +22,11 @@ type Props = StackScreenProps<AuthStackParamList, 'Login'>;
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const { control, handleSubmit, formState: { errors } } = useForm<LoginCredentials>({
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginCredentials>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   });
@@ -31,85 +35,91 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     setIsLoading(true);
     try {
       await authService.signIn(data);
-    } catch (error: any) {
-      console.error('Login error:', error.message);
-      Alert.alert('Login Failed', error.message);
+    } catch (error) {
+      Alert.alert('Login Failed', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <ScreenContainer withKeyboard withPadding={false} style={styles.container}>
-      <View style={styles.headerSection}>
-        <View style={styles.headerAccent} />
-        <Text style={styles.appName}>SecureGate</Text>
-        <Text style={styles.subtitle}>Sign in to your account</Text>
-      </View>
+    <ScreenContainer withKeyboard withPadding={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerSection}>
+          <View style={styles.headerAccent} />
+          <Text style={styles.appName}>SecureGate</Text>
+          <Text style={styles.subtitle}>Sign in to your account</Text>
+        </View>
 
-      <View style={styles.formCard}>
-        <Controller
-          control={control}
-          name="email"
-          render={({ field: { onChange, value } }) => (
-            <AppInput
-              label="Email Address"
-              placeholder="example@society.com"
-              value={value}
-              onChangeText={onChange}
-              error={errors.email?.message}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          )}
-        />
+        <View style={styles.formCard}>
+          <Controller
+            control={control}
+            name="email"
+            render={({ field: { onChange, value } }) => (
+              <AppInput
+                label="Email Address"
+                placeholder="you@society.com"
+                value={value}
+                onChangeText={onChange}
+                error={errors.email?.message}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
+              />
+            )}
+          />
 
-        <Controller
-          control={control}
-          name="password"
-          render={({ field: { onChange, value } }) => (
-            <AppInput
-              label="Password"
-              placeholder="••••••••"
-              value={value}
-              onChangeText={onChange}
-              error={errors.password?.message}
-              isPassword
-            />
-          )}
-        />
+          <Controller
+            control={control}
+            name="password"
+            render={({ field: { onChange, value } }) => (
+              <AppInput
+                label="Password"
+                placeholder="Enter your password"
+                value={value}
+                onChangeText={onChange}
+                error={errors.password?.message}
+                isPassword
+                autoCapitalize="none"
+                autoComplete="current-password"
+                textContentType="password"
+              />
+            )}
+          />
 
-        <TouchableOpacity
-          style={styles.forgotPassword}
-          onPress={() => navigation.navigate('ForgotPassword')}
-          activeOpacity={0.6}
-        >
-          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.forgotPassword}
+            onPress={() => navigation.navigate('ForgotPassword')}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+          >
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
 
-        <AppButton
-          title="Sign In"
-          onPress={handleSubmit(onSubmit)}
-          loading={isLoading}
-          style={styles.button}
-        />
-      </View>
+          <AppButton
+            title="Sign In"
+            onPress={handleSubmit(onSubmit)}
+            loading={isLoading}
+            style={styles.button}
+          />
+        </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Don't have an account? </Text>
-        <Text
-          style={styles.link}
-          onPress={() => navigation.navigate('Register')}
-        >
-          Create Account
+        <Text style={styles.footerText}>
+          Need an account? Ask your society administrator to create one.
         </Text>
-      </View>
+      </ScrollView>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
@@ -158,18 +168,11 @@ const styles = StyleSheet.create({
   button: {
     marginTop: spacing.sm,
   },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: spacing.xl,
-  },
   footerText: {
     ...typography.bodySmall,
     color: colors.textSecondary,
-  },
-  link: {
-    ...typography.bodySmall,
-    color: colors.primary,
-    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: spacing.xl,
+    lineHeight: 20,
   },
 });

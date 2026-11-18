@@ -1,84 +1,102 @@
 import { supabase } from '../lib/supabase';
-import { Visitor, VisitorStatus } from '../types/visitor';
+import { Database } from '../types/database';
+import { Visitor, VisitorStatus, VisitorType } from '../types/visitor';
+import { flatService } from './flatService';
+
+type VisitorRow = Database['public']['Tables']['visitors']['Row'];
+
+function mapVisitor(row: VisitorRow, flatNumber?: string, photoUrl?: string): Visitor {
+  return {
+    id: row.id,
+    visitorName: row.visitor_name,
+    visitorType: row.visitor_type,
+    photoPath: row.photo_path,
+    photoUrl: photoUrl ?? null,
+    flatId: row.flat_id,
+    flatNumber,
+    societyId: row.society_id,
+    createdByGuardId: row.created_by_guard_id,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+async function withDisplayData(rows: VisitorRow[]): Promise<Visitor[]> {
+  if (rows.length === 0) return [];
+
+  const photoPaths = Array.from(new Set(rows.map((row) => row.photo_path)));
+
+  const [flats, signedPhotos] = await Promise.all([
+    flatService.getSocietyFlats().catch(() => []),
+    supabase.storage
+      .from('visitor-photos')
+      .createSignedUrls(photoPaths, 300)
+      .catch(() => ({ data: null, error: null })),
+  ]);
+
+  const flatNumbers = new Map(flats.map((flat) => [flat.id, flat.flatNumber]));
+  const photoUrls = new Map<string, string>();
+  signedPhotos.data?.forEach((photo) => {
+    if (photo.path && photo.signedUrl) photoUrls.set(photo.path, photo.signedUrl);
+  });
+
+  return rows.map((row) =>
+    mapVisitor(row, flatNumbers.get(row.flat_id), photoUrls.get(row.photo_path)),
+  );
+}
 
 export const visitorService = {
-  async createVisitor(visitor: Omit<Visitor, 'id' | 'createdAt' | 'status'>) {
-    const { data, error } = await supabase
-      .from('visitors')
-      .insert({
-        visitor_name: visitor.visitorName,
-        visitor_type: visitor.visitorType,
-        photo_url: visitor.photoUrl,
-        flat_id: visitor.flatId,
-        society_id: visitor.societyId,
-        created_by_guard_id: visitor.createdByGuardId,
-        status: 'pending',
-      })
-      .select()
-      .single();
+  async createVisitor(input: {
+    visitorName: string;
+    visitorType: VisitorType;
+    photoPath: string;
+    flatId: string;
+  }): Promise<Visitor> {
+    const { data, error } = await supabase.rpc('create_visitor', {
+      p_visitor_name: input.visitorName,
+      p_visitor_type: input.visitorType,
+      p_photo_path: input.photoPath,
+      p_flat_id: input.flatId,
+    });
 
     if (error) throw error;
-    return data;
+    if (!data) throw new Error('Visitor was not created');
+
+    return mapVisitor(data);
   },
 
-  async updateVisitorStatus(visitorId: string, status: VisitorStatus, userId: string) {
-    const { data: currentVisitor, error: fetchError } = await supabase
-      .from('visitors')
-      .select('status')
-      .eq('id', visitorId)
-      .single();
+  async updateVisitorStatus(visitorId: string, status: VisitorStatus): Promise<Visitor> {
+    const { data, error } = await supabase.rpc('update_visitor_status', {
+      p_visitor_id: visitorId,
+      p_new_status: status,
+    });
 
-    if (fetchError) throw fetchError;
+    if (error) throw error;
+    if (!data) throw new Error('Visitor status was not updated');
 
-    const { error: updateError } = await supabase
-      .from('visitors')
-      .update({ status })
-      .eq('id', visitorId);
-
-    if (updateError) throw updateError;
-
-    const { error: historyError } = await supabase
-      .from('visitor_status_history')
-      .insert({
-        visitor_id: visitorId,
-        previous_status: currentVisitor.status,
-        new_status: status,
-        changed_by: userId,
-      });
-
-    if (historyError) throw historyError;
+    return mapVisitor(data);
   },
 
-  async getResidentVisitors(flatId: string): Promise<Visitor[]> {
+  async getResidentVisitors(): Promise<Visitor[]> {
     const { data, error } = await supabase
       .from('visitors')
-      .select('*, flats(flat_number)')
-      .eq('flat_id', flatId)
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    return data.map(item => ({
-      id: item.id,
-      visitorName: item.visitor_name,
-      visitorType: item.visitor_type,
-      photoUrl: item.photo_url,
-      flatId: item.flat_id,
-      societyId: item.society_id,
-      createdByGuardId: item.created_by_guard_id,
-      status: item.status,
-      createdAt: item.created_at || '',
-      flatNumber: (item.flats as any)?.flat_number,
-    }));
+    return withDisplayData(data ?? []);
   },
 
-  async getSocietyFlats(societyId: string) {
+  async getGuardVisitors(): Promise<Visitor[]> {
     const { data, error } = await supabase
-      .from('flats')
+      .from('visitors')
       .select('*')
-      .eq('society_id', societyId);
+      .in('status', ['approved', 'entered'])
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
-  }
+
+    return withDisplayData(data ?? []);
+  },
 };

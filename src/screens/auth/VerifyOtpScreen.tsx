@@ -1,34 +1,42 @@
-import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Alert,
-} from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { AuthStackParamList } from '../../navigation/types';
 import { AppButton } from '../../components/common/AppButton';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { colors, spacing, typography } from '../../theme';
 import { authService } from '../../services/authService';
+import { useAuth } from '../../hooks/useAuth';
 
 type Props = StackScreenProps<AuthStackParamList, 'VerifyOtp'>;
 
-export const VerifyOtpScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { email, mode } = route.params;
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+const OTP_LENGTH = 6;
+
+export const VerifyOtpScreen: React.FC<Props> = ({ route }) => {
+  const { email } = route.params;
+  const { startPasswordRecovery } = useAuth();
+  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [isLoading, setIsLoading] = useState(false);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
+  const [isResending, setIsResending] = useState(false);
+  const inputRefs = useRef<(React.ComponentRef<typeof TextInput> | null)[]>([]);
 
   const handleOtpChange = (text: string, index: number) => {
-    const newOtp = [...otp];
-    newOtp[index] = text;
-    setOtp(newOtp);
-
-    if (text && index < 5) {
-      inputRefs.current[index + 1]?.focus();
+    const digits = text.replace(/\D/g, '');
+    if (!digits) {
+      setOtp((previous) => previous.map((digit, i) => (i === index ? '' : digit)));
+      return;
     }
+
+    setOtp((previous) => {
+      const next = [...previous];
+      for (let offset = 0; offset < digits.length && index + offset < OTP_LENGTH; offset += 1) {
+        next[index + offset] = digits[offset];
+      }
+      return next;
+    });
+
+    const nextIndex = Math.min(index + digits.length, OTP_LENGTH - 1);
+    inputRefs.current[nextIndex]?.focus();
   };
 
   const handleKeyPress = (key: string, index: number) => {
@@ -39,26 +47,21 @@ export const VerifyOtpScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleVerify = async () => {
     const token = otp.join('');
-    if (token.length !== 6) {
-      Alert.alert('Error', 'Please enter the complete 6-digit verification code');
+    if (token.length !== OTP_LENGTH) {
+      Alert.alert('Code Required', 'Enter the complete 6-digit verification code.');
       return;
     }
 
     setIsLoading(true);
     try {
-      await authService.verifyOtp(email, token);
-
-      if (mode === 'password_reset') {
-        navigation.replace('ChangePassword', { email });
-      } else {
-        Alert.alert('Success', 'Your email has been verified successfully!', [
-          { text: 'OK', onPress: () => navigation.navigate('Login') },
-        ]);
-      }
-    } catch (error: any) {
-      console.error('OTP verification error:', error);
-      Alert.alert('Verification Failed', error.message || 'Invalid or expired verification code');
-      setOtp(['', '', '', '', '', '']);
+      await authService.verifyRecoveryOtp(email, token);
+      startPasswordRecovery();
+    } catch (error) {
+      Alert.alert(
+        'Verification Failed',
+        error instanceof Error ? error.message : 'The code could not be verified.',
+      );
+      setOtp(Array(OTP_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
     } finally {
       setIsLoading(false);
@@ -66,59 +69,75 @@ export const VerifyOtpScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const handleResendOtp = async () => {
+    setIsResending(true);
     try {
-      await authService.sendOtp(email);
-      Alert.alert('Sent', 'A new verification code has been sent to your email.');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to resend code');
+      await authService.requestPasswordResetOtp(email);
+      Alert.alert('Code Sent', 'A new verification code has been sent to your email.');
+    } catch (error) {
+      Alert.alert('Could Not Resend', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setIsResending(false);
     }
   };
 
   return (
-    <ScreenContainer withKeyboard withPadding={false} style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Verify Email</Text>
-        <Text style={styles.subtitle}>
-          Enter the 6-digit verification code sent to{'\n'}
-          <Text style={styles.emailText}>{email}</Text>
-        </Text>
-      </View>
+    <ScreenContainer withKeyboard withPadding={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Enter Verification Code</Text>
+          <Text style={styles.subtitle}>
+            Enter the 6-digit code sent to{'\n'}
+            <Text style={styles.emailText}>{email}</Text>
+          </Text>
+        </View>
 
-      <View style={styles.otpContainer}>
-        {otp.map((digit, index) => (
-          <TextInput
-            key={index}
-            ref={(ref) => { inputRefs.current[index] = ref; }}
-            style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
-            value={digit}
-            onChangeText={(text) => handleOtpChange(text, index)}
-            onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
-            keyboardType="number-pad"
-            maxLength={1}
-            selectTextOnFocus
-          />
-        ))}
-      </View>
+        <View style={styles.otpContainer}>
+          {otp.map((digit, index) => (
+            <TextInput
+              key={index}
+              ref={(ref) => {
+                inputRefs.current[index] = ref;
+              }}
+              style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
+              value={digit}
+              onChangeText={(text) => handleOtpChange(text, index)}
+              onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+              keyboardType="number-pad"
+              maxLength={OTP_LENGTH}
+              selectTextOnFocus
+              autoComplete="one-time-code"
+              textContentType="oneTimeCode"
+              accessibilityLabel={`Verification digit ${index + 1}`}
+            />
+          ))}
+        </View>
 
-      <AppButton
-        title="Verify Code"
-        onPress={handleVerify}
-        loading={isLoading}
-        style={styles.button}
-      />
+        <AppButton
+          title="Verify Code"
+          onPress={handleVerify}
+          loading={isLoading}
+          disabled={isResending}
+          style={styles.button}
+        />
 
-      <View style={styles.resendContainer}>
-        <Text style={styles.resendText}>Didn't receive the code? </Text>
-        <Text style={styles.resendLink} onPress={handleResendOtp}>
-          Resend
-        </Text>
-      </View>
+        <View style={styles.resendContainer}>
+          <Text style={styles.resendText}>Didn&apos;t receive the code? </Text>
+          <Text style={styles.resendLink} onPress={isResending ? undefined : handleResendOtp}>
+            {isResending ? 'Sending…' : 'Resend'}
+          </Text>
+        </View>
+      </ScrollView>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
@@ -147,7 +166,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   otpInput: {
-    width: 48,
+    flex: 1,
     height: 54,
     borderWidth: 1.5,
     borderColor: colors.border,

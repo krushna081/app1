@@ -1,35 +1,37 @@
-node_modules
+# Environment
+.env
+.env.*
+!.env.example
 
-# Expo
+# Dependencies and build output
+node_modules/
 .expo/
 dist/
 web-build/
+coverage/
+*.tsbuildinfo
 
-# Environment variables
-.env
-.env.local
-.env.production
+# Expo
+.expo-shared/
+.vercel/
 
-# IDE
+# Supabase
+supabase/.temp/
+supabase/.branches/
+
+# IDE and OS
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# npm/yarn
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# TypeScript
-*.tsbuildinfo
-
-# Supabase seed
-seed.js
+*.log

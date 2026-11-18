@@ -21,11 +21,7 @@ export const AdminNavigator = () => (
       },
     }}
   >
-    <Stack.Screen
-      name="AdminHome"
-      component={AdminScreen}
-      options={{ title: 'Dashboard' }}
-    />
+    <Stack.Screen name="AdminHome" component={AdminScreen} options={{ title: 'Dashboard' }} />
     <Stack.Screen
       name="CreateAccount"
       component={CreateAccountScreen}

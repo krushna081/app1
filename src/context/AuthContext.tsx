@@ -1,77 +1,218 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { Session } from '@supabase/supabase-js';
 import { AuthState } from '../types/auth';
 import { supabase } from '../lib/supabase';
 import { profileService } from '../services/profileService';
 
 interface AuthContextType extends AuthState {
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  startPasswordRecovery: () => void;
+  completePasswordRecovery: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const LOADING_TIMEOUT = 10000;
+const LOADING_TIMEOUT_MS = 12000;
+
+const emptyState: AuthState = {
+  user: null,
+  isLoading: false,
+  session: null,
+  error: null,
+  isPasswordRecovery: false,
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<AuthState>({
-    user: null,
+    ...emptyState,
     isLoading: true,
-    session: null,
   });
-  const hasResolved = useRef(false);
+  const requestId = useRef(0);
 
-  const resolveLoading = (newState: Partial<AuthState>) => {
-    if (hasResolved.current) return;
-    hasResolved.current = true;
-    setState(prev => ({ ...prev, ...newState, isLoading: false }));
-  };
+  const loadProfile = useCallback(async (session: Session) => {
+    const currentRequest = ++requestId.current;
+    setState((previous) => ({ ...previous, isLoading: true, error: null }));
 
-  const fetchProfile = async (userId: string, session: any) => {
     try {
-      const profile = await profileService.getProfile(userId);
-      resolveLoading({ user: profile, session });
+      const profile = await profileService.getProfile(session.user.id);
+      if (currentRequest !== requestId.current) return;
+
+      setState((previous) => ({
+        ...previous,
+        user: profile,
+        session,
+        error: null,
+        isLoading: false,
+      }));
     } catch (error) {
-      console.error('Profile fetch failed:', error);
-      resolveLoading({ user: null, session: null });
+      if (currentRequest !== requestId.current) return;
+
+      const missingProfile = error instanceof Error && error.message === 'Profile not found';
+      setState((previous) => ({
+        ...previous,
+        user: null,
+        session,
+        error: missingProfile
+          ? 'Your account is not linked to a society yet. Contact your society administrator.'
+          : 'Could not load your profile. Check your connection and try again.',
+        isLoading: false,
+      }));
     }
-  };
+  }, []);
 
   useEffect(() => {
+    let active = true;
+    const initialRequest = requestId.current;
+
     const timeoutId = setTimeout(() => {
-      if (!hasResolved.current) {
-        resolveLoading({ user: null, session: null });
-      }
-    }, LOADING_TIMEOUT);
+      if (!active) return;
+      setState((previous) =>
+        previous.isLoading
+          ? {
+              ...previous,
+              isLoading: false,
+              error:
+                previous.error ?? 'Sign-in took too long. Check your connection and try again.',
+            }
+          : previous,
+      );
+    }, LOADING_TIMEOUT_MS);
 
-    // Handle the redirect from email confirmation link
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchProfile(session.user.id, session);
-      } else {
-        resolveLoading({});
-      }
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (!active || initialRequest !== requestId.current) return;
+        if (session) {
+          void loadProfile(session);
+        } else {
+          setState((previous) => (previous.user || previous.session ? previous : emptyState));
+        }
+      })
+      .catch(() => {
+        if (!active || initialRequest !== requestId.current) return;
+        setState({
+          ...emptyState,
+          error: 'Could not restore your session. Check your connection and try again.',
+        });
+      });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // SIGNED_IN fires automatically after email confirmation link is clicked
-      if (event === 'SIGNED_IN' && session?.user) {
-        await fetchProfile(session.user.id, session);
-      } else if (event === 'SIGNED_OUT') {
-        hasResolved.current = false;
-        setState({ user: null, session: null, isLoading: false });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+
+      if (event === 'SIGNED_OUT') {
+        requestId.current += 1;
+        setState(emptyState);
+        return;
       }
+
+      if (event === 'PASSWORD_RECOVERY') {
+        setState((previous) => ({ ...previous, isPasswordRecovery: true }));
+      }
+
+      if (!session) {
+        setState((previous) => ({
+          ...previous,
+          user: null,
+          session: null,
+          isLoading: false,
+        }));
+        return;
+      }
+
+      if (event === 'TOKEN_REFRESHED') {
+        setState((previous) => ({ ...previous, session }));
+        return;
+      }
+
+      // Supabase auth callbacks hold an internal lock. Defer profile reads
+      // instead of awaiting another Supabase call inside the callback.
+      setTimeout(() => {
+        if (!active) return;
+
+        void supabase.auth
+          .getSession()
+          .then(({ data: { session: currentSession } }) => {
+            if (!active || !currentSession || currentSession.user.id !== session.user.id) {
+              return;
+            }
+            void loadProfile(currentSession);
+          })
+          .catch(() => undefined);
+      }, 0);
     });
 
     return () => {
+      active = false;
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadProfile]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.warn('Sign out request failed; clearing local session', error);
+    } finally {
+      requestId.current += 1;
+      setState(emptyState);
+    }
+  };
+
+  const refreshProfile = async () => {
+    setState((previous) => ({
+      ...previous,
+      isLoading: true,
+      error: null,
+    }));
+
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error) throw error;
+
+      if (!session) {
+        setState(emptyState);
+        return;
+      }
+
+      await loadProfile(session);
+    } catch {
+      requestId.current += 1;
+      setState((previous) => ({
+        ...previous,
+        user: null,
+        session: null,
+        isLoading: false,
+        error: 'Could not restore your session. Check your connection and try again.',
+      }));
+    }
+  };
+
+  const startPasswordRecovery = () => {
+    setState((previous) => ({ ...previous, isPasswordRecovery: true }));
+  };
+
+  const completePasswordRecovery = async () => {
+    setState((previous) => ({ ...previous, isPasswordRecovery: false }));
+    await refreshProfile();
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, signOut }}>
+    <AuthContext.Provider
+      value={{
+        ...state,
+        signOut,
+        refreshProfile,
+        startPasswordRecovery,
+        completePasswordRecovery,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

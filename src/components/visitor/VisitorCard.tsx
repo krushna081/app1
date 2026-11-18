@@ -1,65 +1,91 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
+import { formatDistanceToNow } from 'date-fns';
 import { colors, spacing, typography, shadows } from '../../theme';
 import { Visitor } from '../../types/visitor';
 import { StatusBadge } from '../common/StatusBadge';
 import { AppButton } from '../common/AppButton';
-import { formatDistanceToNow } from 'date-fns';
 
 interface Props {
   visitor: Visitor;
   onApprove?: () => void;
   onReject?: () => void;
+  onMarkEntered?: () => void;
+  onMarkExited?: () => void;
   isLoadingDecision?: boolean;
 }
 
-export const VisitorCard: React.FC<Props> = React.memo(({
-  visitor,
-  onApprove,
-  onReject,
-  isLoadingDecision
-}) => {
-  const showActions = visitor.status === 'pending' && onApprove && onReject;
+export const VisitorCard: React.FC<Props> = React.memo(
+  ({ visitor, onApprove, onReject, onMarkEntered, onMarkExited, isLoadingDecision }) => {
+    const showResidentActions = visitor.status === 'pending' && onApprove && onReject;
+    const showEnterAction = visitor.status === 'approved' && onMarkEntered;
+    const showExitAction = visitor.status === 'entered' && onMarkExited;
 
-  return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        {visitor.photoUrl ? (
-          <Image source={{ uri: visitor.photoUrl }} style={styles.photo} />
-        ) : (
-          <View style={[styles.photo, styles.photoPlaceholder]} />
-        )}
-        <View style={styles.info}>
-          <Text style={styles.name}>{visitor.visitorName}</Text>
-          <Text style={styles.type}>{visitor.visitorType}</Text>
-          <Text style={styles.time}>
-            {formatDistanceToNow(new Date(visitor.createdAt))} ago
-          </Text>
+    return (
+      <View style={styles.card}>
+        <View style={styles.header}>
+          {visitor.photoUrl ? (
+            <Image source={{ uri: visitor.photoUrl }} style={styles.photo} />
+          ) : (
+            <View style={[styles.photo, styles.photoPlaceholder]}>
+              <Text style={styles.photoInitial}>{visitor.visitorName.charAt(0)}</Text>
+            </View>
+          )}
+          <View style={styles.info}>
+            <Text style={styles.name}>{visitor.visitorName}</Text>
+            <Text style={styles.type}>
+              {visitor.visitorType}
+              {visitor.flatNumber ? ` · Flat ${visitor.flatNumber}` : ''}
+            </Text>
+            <Text style={styles.time}>{formatDistanceToNow(new Date(visitor.createdAt))} ago</Text>
+          </View>
+          <StatusBadge status={visitor.status} />
         </View>
-        <StatusBadge status={visitor.status} />
-      </View>
 
-      {showActions && (
-        <View style={styles.actions}>
+        {showResidentActions ? (
+          <View style={styles.actions}>
+            <AppButton
+              title="Reject"
+              variant="danger"
+              onPress={onReject}
+              style={styles.actionBtn}
+              loading={isLoadingDecision}
+            />
+            <AppButton
+              title="Approve"
+              variant="success"
+              onPress={onApprove}
+              style={styles.actionBtn}
+              loading={isLoadingDecision}
+            />
+          </View>
+        ) : null}
+
+        {showEnterAction ? (
           <AppButton
-            title="Reject"
-            variant="danger"
-            onPress={onReject}
-            style={styles.actionBtn}
-            loading={isLoadingDecision}
-          />
-          <AppButton
-            title="Approve"
+            title="Mark Entered"
             variant="success"
-            onPress={onApprove}
-            style={styles.actionBtn}
+            onPress={onMarkEntered}
+            style={styles.fullAction}
             loading={isLoadingDecision}
           />
-        </View>
-      )}
-    </View>
-  );
-});
+        ) : null}
+
+        {showExitAction ? (
+          <AppButton
+            title="Mark Exited"
+            variant="secondary"
+            onPress={onMarkExited}
+            style={styles.fullAction}
+            loading={isLoadingDecision}
+          />
+        ) : null}
+      </View>
+    );
+  },
+);
+
+VisitorCard.displayName = 'VisitorCard';
 
 const styles = StyleSheet.create({
   card: {
@@ -83,6 +109,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoInitial: {
+    ...typography.h3,
+    color: colors.textSecondary,
   },
   info: {
     flex: 1,
@@ -112,5 +144,9 @@ const styles = StyleSheet.create({
   actionBtn: {
     flex: 1,
     height: 40,
+  },
+  fullAction: {
+    marginTop: spacing.md,
+    height: 44,
   },
 });

@@ -1,12 +1,8 @@
-import { UserRole } from '../types/auth';
-
 export type AuthStackParamList = {
   Welcome: undefined;
   Login: undefined;
-  Register: undefined;
   ForgotPassword: undefined;
-  VerifyOtp: { email: string; mode: 'email_verification' | 'password_reset' };
-  ChangePassword: { email: string };
+  VerifyOtp: { email: string };
 };
 
 export type GuardStackParamList = {
@@ -27,4 +23,5 @@ export type RootStackParamList = {
   Guard: undefined;
   Resident: undefined;
   Admin: undefined;
+  PasswordRecovery: undefined;
 };
